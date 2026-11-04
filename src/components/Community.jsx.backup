@@ -1,0 +1,458 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import supabase from '../lib/supabase';
+import { Search, Plus, MessageCircle, Users, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+
+const Community = () => {
+  const navigate = useNavigate();
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [discussions, setDiscussions] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [communityStats, setCommunityStats] = useState({
+    totalMembers: 0,
+    totalDiscussions: 0,
+    activeToday: 0
+  });
+
+  // Fetch community data on component mount
+  useEffect(() => {
+    fetchCommunityData();
+  }, []);
+
+  const fetchCommunityData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch discussions with comment counts
+      const { data: discussionsData, error: discussionsError } = await supabase
+        .from('community_posts')
+        .select(`
+          *,
+          comment_count:community_comments(count)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (discussionsError) {
+        console.error('Error fetching discussions:', discussionsError);
+        // Use fallback data if database is not set up yet
+        setDiscussions(fallbackDiscussions);
+        setCategories(fallbackCategories);
+      } else {
+        // Process the data
+        const processedDiscussions = discussionsData.map(post => ({
+          id: post.id,
+          title: post.title,
+          author: post.author_name,
+          category: post.category,
+          replies: post.comment_count?.[0]?.count || 0,
+          views: post.views,
+          lastActivity: formatTimeAgo(post.updated_at),
+          isHot: post.is_hot,
+          tags: post.tags || [],
+          content: post.content
+        }));
+
+        setDiscussions(processedDiscussions);
+        
+        // Calculate dynamic categories
+        const categoryStats = calculateCategoryStats(processedDiscussions);
+        setCategories(categoryStats);
+        
+        // Set community stats
+        setCommunityStats({
+          totalMembers: 12847, // This could be fetched from users table
+          totalDiscussions: processedDiscussions.length,
+          activeToday: Math.floor(processedDiscussions.length * 0.1) // Estimate
+        });
+      }
+    } catch (error) {
+      console.error('Error in fetchCommunityData:', error);
+      // Use fallback data
+      setDiscussions(fallbackDiscussions);
+      setCategories(fallbackCategories);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return '1 day ago';
+    return `${diffInDays} days ago`;
+  };
+
+  const calculateCategoryStats = (discussions) => {
+    const stats = {
+      all: discussions.length,
+      digestive: 0,
+      respiratory: 0,
+      skin: 0,
+      'mental-health': 0,
+      'womens-health': 0,
+      general: 0
+    };
+
+    discussions.forEach(discussion => {
+      if (stats.hasOwnProperty(discussion.category)) {
+        stats[discussion.category]++;
+      }
+    });
+
+    return [
+      { id: 'all', name: 'All', count: stats.all },
+      { id: 'digestive', name: 'Digestive', count: stats.digestive },
+      { id: 'respiratory', name: 'Respiratory', count: stats.respiratory },
+      { id: 'skin', name: 'Skin', count: stats.skin },
+      { id: 'mental-health', name: 'Mental Health', count: stats['mental-health'] },
+      { id: 'womens-health', name: "Women's Health", count: stats['womens-health'] },
+      { id: 'general', name: 'General', count: stats.general }
+    ];
+  };
+
+  // Fallback data for when database is not available
+  const fallbackCategories = [
+    { id: 'all', name: 'All', count: 8 },
+    { id: 'digestive', name: 'Digestive', count: 2 },
+    { id: 'respiratory', name: 'Respiratory', count: 1 },
+    { id: 'skin', name: 'Skin', count: 1 },
+    { id: 'mental-health', name: 'Mental Health', count: 2 },
+    { id: 'womens-health', name: "Women's Health", count: 1 },
+    { id: 'general', name: 'General', count: 1 }
+  ];
+
+  const fallbackDiscussions = [
+    {
+      id: 1,
+      title: 'Best time to take Ashwagandha for stress relief?',
+      author: 'Sarah M.',
+      category: 'mental-health',
+      replies: 23,
+      views: 456,
+      lastActivity: '2 hours ago',
+      isHot: true,
+      tags: ['ashwagandha', 'stress', 'timing']
+    },
+    {
+      id: 2,
+      title: 'Turmeric golden milk recipe variations - share yours!',
+      author: 'Raj P.',
+      category: 'digestive',
+      replies: 18,
+      views: 342,
+      lastActivity: '4 hours ago',
+      isHot: false,
+      tags: ['turmeric', 'golden-milk', 'recipes']
+    },
+    {
+      id: 3,
+      title: 'Natural remedies for seasonal allergies that actually work',
+      author: 'Emily R.',
+      category: 'respiratory',
+      replies: 31,
+      views: 678,
+      lastActivity: '6 hours ago',
+      isHot: true,
+      tags: ['allergies', 'respiratory', 'seasonal']
+    },
+    {
+      id: 4,
+      title: 'Ayurvedic skincare routine for acne-prone skin',
+      author: 'Maya K.',
+      category: 'skin',
+      replies: 15,
+      views: 289,
+      lastActivity: '8 hours ago',
+      isHot: false,
+      tags: ['skincare', 'acne', 'routine']
+    },
+    {
+      id: 5,
+      title: 'Pregnancy-safe herbs and remedies - comprehensive list',
+      author: 'Dr. Priya S.',
+      category: 'womens-health',
+      replies: 42,
+      views: 892,
+      lastActivity: '12 hours ago',
+      isHot: true,
+      tags: ['pregnancy', 'safety', 'herbs']
+    },
+    {
+      id: 6,
+      title: 'Beginner\'s guide to understanding your dosha type',
+      author: 'Ayurveda Basics',
+      category: 'general',
+      replies: 28,
+      views: 534,
+      lastActivity: '1 day ago',
+      isHot: false,
+      tags: ['dosha', 'beginner', 'constitution']
+    },
+    {
+      id: 7,
+      title: 'CCF Tea benefits and preparation tips',
+      author: 'Wellness Seeker',
+      category: 'digestive',
+      replies: 12,
+      views: 234,
+      lastActivity: '1 day ago',
+      isHot: false,
+      tags: ['ccf-tea', 'digestion', 'preparation']
+    },
+    {
+      id: 8,
+      title: 'Meditation and Ayurveda: Finding your practice',
+      author: 'Mindful Maya',
+      category: 'mental-health',
+      replies: 9,
+      views: 167,
+      lastActivity: '2 days ago',
+      isHot: false,
+      tags: ['meditation', 'lifestyle', 'practice']
+    }
+  ];
+
+  const featuredDiscussions = [
+    {
+      id: 1,
+      title: 'Monthly Challenge: 30 Days of Golden Milk',
+      participants: 156,
+      category: 'digestive'
+    },
+    {
+      id: 2,
+      title: 'Expert AMA: Ayurvedic Doctor Q&A Session',
+      participants: 89,
+      category: 'general'
+    }
+  ];
+
+  const filteredDiscussions = discussions.filter(discussion => {
+    const matchesCategory = activeCategory === 'all' || discussion.category === activeCategory;
+    const matchesSearch = searchTerm === '' || 
+                         discussion.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         discussion.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (discussion.content && discussion.content.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                         discussion.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    return matchesCategory && matchesSearch;
+  });
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Community Discussions</h1>
+              <p className="text-gray-600">Connect with fellow wellness enthusiasts and share your Ayurvedic journey</p>
+            </div>
+            <Button className="bg-green-600 hover:bg-green-700 mt-4 md:mt-0" onClick={() => navigate('/community/new')}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Discussion
+            </Button>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              type="text"
+              placeholder="Search discussions, topics, authors, or tags..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 border-green-200 focus:border-green-400"
+            />
+            {searchTerm && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500">
+                {filteredDiscussions.length} result{filteredDiscussions.length !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            {/* Categories */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Categories</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {categories.map((category) => (
+                    <button
+                      key={category.id}
+                      onClick={() => setActiveCategory(category.id)}
+                      className={`w-full text-left p-2 rounded-lg transition-colors ${
+                        activeCategory === category.id
+                          ? 'bg-green-100 text-green-700'
+                          : 'hover:bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{category.name}</span>
+                        <span className="text-sm text-gray-500">{category.count}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Featured Discussions */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Featured Discussions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {featuredDiscussions.map((discussion) => (
+                    <div key={discussion.id} className="p-3 bg-green-50 rounded-lg">
+                      <h4 className="font-medium text-gray-900 mb-2">{discussion.title}</h4>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Users className="h-3 w-3 mr-1" />
+                        <span>{discussion.participants} participants</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Community Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Community Stats</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Users className="h-4 w-4 text-green-600 mr-2" />
+                      <span className="text-sm text-gray-600">Total Members</span>
+                    </div>
+                    <span className="font-semibold">{communityStats.totalMembers.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <MessageCircle className="h-4 w-4 text-green-600 mr-2" />
+                      <span className="text-sm text-gray-600">Discussions</span>
+                    </div>
+                    <span className="font-semibold">{communityStats.totalDiscussions}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <TrendingUp className="h-4 w-4 text-green-600 mr-2" />
+                      <span className="text-sm text-gray-600">Active Today</span>
+                    </div>
+                    <span className="font-semibold">{communityStats.activeToday}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="p-6">
+                      <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                      <div className="flex space-x-4">
+                        <div className="h-3 bg-gray-200 rounded w-20"></div>
+                        <div className="h-3 bg-gray-200 rounded w-16"></div>
+                        <div className="h-3 bg-gray-200 rounded w-24"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Discussion List */}
+                <div className="space-y-4">
+              {filteredDiscussions.map((discussion) => (
+                <Card key={discussion.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {discussion.isHot && (
+                            <Badge variant="destructive" className="text-xs">
+                              🔥 Hot
+                            </Badge>
+                          )}
+                          <Badge variant="secondary" className="text-xs">
+                            {categories.find(cat => cat.id === discussion.category)?.name}
+                          </Badge>
+                        </div>
+                        
+                        <Link to={`/community/discussion/${discussion.id}`}>
+                          <h3 className="text-lg font-semibold text-gray-900 hover:text-green-600 mb-2">
+                            {discussion.title}
+                          </h3>
+                        </Link>
+                        
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {discussion.tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs">
+                              #{tag}
+                            </Badge>
+                          ))}
+                        </div>
+                        
+                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                          <span>by {discussion.author}</span>
+                          <div className="flex items-center">
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            <span>{discussion.replies} replies</span>
+                          </div>
+                          <span>{discussion.views} views</span>
+                          <span>Last activity {discussion.lastActivity}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-shrink-0 ml-4">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                          <span className="text-green-600 font-medium text-sm">
+                            {discussion.author.charAt(0)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Load More */}
+            <div className="text-center mt-8">
+              <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white">
+                Load More Discussions
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Community;
+
